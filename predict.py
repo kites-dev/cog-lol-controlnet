@@ -62,12 +62,12 @@ class Predictor(BasePredictor):
         ),
         
         control_image: Path = Input(
-            description="Select a image (QR Code)",
+            description="Select an image (QR Code)",
             default= None,
         ),
         
         image: Path = Input(
-            description="Select a image",
+            description="Select an image",
             default= None,
         ),
         
@@ -93,20 +93,16 @@ class Predictor(BasePredictor):
         guidance_scale: float = Input(
             description="Scale for classifier-free guidance", ge=1, le=20, default=7.5
         ),
-        scheduler: str = Input(
-            default="DPMSolverMultistep",
-            choices=[
-                "DDIM",
-                "K_EULER",
-                "DPMSolverMultistep",
-                "K_EULER_ANCESTRAL",
-                "PNDM",
-                "KLMS",
-            ],
-            description="Choose a scheduler.",
-        ),
+        
+        
         seed: int = Input(
-            description="Random seed. Leave blank to randomize the seed", default=None
+            description="Random seed. Leave blank to randomize the seed. This is also named Generator", default=None
+        ),
+         strength: int = Input(
+            default=0.9,
+        ),
+         controlnet_conditioning_scale: int = Input(
+            default=1.5,
         ),
     ) -> List[Path]:
         """Run a single prediction on the model"""
@@ -146,6 +142,8 @@ class Predictor(BasePredictor):
             guidance_scale=guidance_scale,
             generator=generator,
             num_inference_steps=num_inference_steps,
+            controlnet_conditioning_scale=controlnet_conditioning_scale,
+            strength=strength,
         )
 
         output_paths = []
