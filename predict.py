@@ -124,8 +124,6 @@ class Predictor(BasePredictor):
         generator = torch.Generator("cuda").manual_seed(seed)
         
         def resize_for_condition_image(input_image: Image, resolution: int):
-            if input_image is None:
-                input_image = load_image("https://s3.amazonaws.com/moonup/production/uploads/6064e095abd8d3692e3e2ed6/A_RqHaAM6YHBodPLwqtjn.png")
             input_image = input_image.convert("RGB")
             W, H = input_image.size
             k = float(resolution) / min(H, W)
@@ -141,8 +139,8 @@ class Predictor(BasePredictor):
             negative_prompt=[negative_prompt] * num_outputs
             if negative_prompt is not None
             else None,
-            control_image=Image.open(control_image),
-            image=Image.open(image),
+            control_image=resize_for_condition_image(Image.open(control_image),width),
+            image=resize_for_condition_image(Image.open(image),width),
             width=width,
             height=height,
             guidance_scale=guidance_scale,
