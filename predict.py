@@ -3,6 +3,8 @@ from typing import List
 
 import torch
 from cog import BasePredictor, Input, Path
+from PIL import Image
+from diffusers.utils import load_image
 from diffusers import (
     StableDiffusionPipeline,
     PNDMScheduler,
@@ -11,6 +13,8 @@ from diffusers import (
     EulerDiscreteScheduler,
     EulerAncestralDiscreteScheduler,
     DPMSolverMultistepScheduler,
+    StableDiffusionControlNetImg2ImgPipeline,
+    ControlNetModel
 )
 from diffusers.pipelines.stable_diffusion.safety_checker import (
     StableDiffusionSafetyChecker,
@@ -31,24 +35,42 @@ class Predictor(BasePredictor):
             cache_dir=MODEL_CACHE,
             local_files_only=True,
         )
-        self.pipe = StableDiffusionPipeline.from_pretrained(
-            MODEL_ID,
-            safety_checker=safety_checker,
-            cache_dir=MODEL_CACHE,
-            local_files_only=True,
-        ).to("cuda")
+        controlnet = ControlNetModel.from_pretrained("DionTimmer/controlnet_qrcode-control_v11p_sd21",
+                                             torch_dtype=torch.float16,
+                                             cache_dir=MODEL_CACHE,
+                                             local_files_only=True)
 
+        self.pipe = StableDiffusionControlNetImg2ImgPipeline.from_pretrained(
+                    "stabilityai/stable-diffusion-2-1",
+                    controlnet=controlnet,
+                    safety_checker=None,
+                    torch_dtype=torch.float16,
+                    cache_dir=MODEL_CACHE,
+                    local_files_only=True,
+                    ).to("cuda")
+    
     @torch.inference_mode()
     def predict(
         self,
         prompt: str = Input(
             description="Input prompt",
-            default="a photo of an astronaut riding a horse on mars",
+            default="a bilboard in NYC with a qrcode",
         ),
         negative_prompt: str = Input(
             description="Specify things to not see in the output",
             default=None,
         ),
+        
+        control_image: Path = Input(
+            description="Select a image (QR Code)",
+            default= None,
+        ),
+        
+        image: Path = Input(
+            description="Select a image",
+            default= None,
+        ),
+        
         width: int = Input(
             description="Width of output image. Maximum size is 1024x768 or 768x1024 because of memory limits",
             choices=[128, 256, 384, 448, 512, 576, 640, 704, 768, 832, 896, 960, 1024],
@@ -100,11 +122,27 @@ class Predictor(BasePredictor):
         self.pipe.scheduler = make_scheduler(scheduler, self.pipe.scheduler.config)
 
         generator = torch.Generator("cuda").manual_seed(seed)
+        
+        def resize_for_condition_image(input_image: Image, resolution: int):
+            if input_image is None:
+                input_image = load_image("https://s3.amazonaws.com/moonup/production/uploads/6064e095abd8d3692e3e2ed6/A_RqHaAM6YHBodPLwqtjn.png")
+            input_image = input_image.convert("RGB")
+            W, H = input_image.size
+            k = float(resolution) / min(H, W)
+            H *= k
+            W *= k
+            H = int(round(H / 64.0)) * 64
+            W = int(round(W / 64.0)) * 64
+            img = input_image.resize((W, H), resample=Image.LANCZOS)
+            return img
+
         output = self.pipe(
             prompt=[prompt] * num_outputs if prompt is not None else None,
             negative_prompt=[negative_prompt] * num_outputs
             if negative_prompt is not None
             else None,
+            control_image=Image.open(control_image),
+            image=Image.open(image),
             width=width,
             height=height,
             guidance_scale=guidance_scale,
