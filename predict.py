@@ -22,7 +22,7 @@ from diffusers.pipelines.stable_diffusion.safety_checker import (
 
 # MODEL_ID refers to a diffusers-compatible model on HuggingFace
 # e.g. prompthero/openjourney-v2, wavymulder/Analog-Diffusion, etc
-MODEL_ID = "stabilityai/stable-diffusion-2-1"
+MODEL_ID = "DummyBanana/lol-diffusions"
 MODEL_CACHE = "diffusers-cache"
 SAFETY_MODEL_ID = "CompVis/stable-diffusion-safety-checker"
 
@@ -35,13 +35,13 @@ class Predictor(BasePredictor):
             cache_dir=MODEL_CACHE,
             local_files_only=True,
         )
-        controlnet = ControlNetModel.from_pretrained("DionTimmer/controlnet_qrcode-control_v11p_sd21",
+        controlnet = ControlNetModel.from_pretrained("lllyasviel/sd-controlnet-canny",
                                              torch_dtype=torch.float16,
                                              cache_dir=MODEL_CACHE,
                                              local_files_only=True)
 
         self.pipe = StableDiffusionControlNetImg2ImgPipeline.from_pretrained(
-                    "stabilityai/stable-diffusion-2-1",
+                    "DummyBanana/lol-diffusions",
                     controlnet=controlnet,
                     safety_checker=None,
                     torch_dtype=torch.float16,
@@ -59,11 +59,6 @@ class Predictor(BasePredictor):
         negative_prompt: str = Input(
             description="Specify things to not see in the output",
             default=None,
-        ),
-        
-        control_image: Path = Input(
-            description="Select an image (QR Code)",
-            default= None,
         ),
         
         image: Path = Input(
@@ -135,7 +130,6 @@ class Predictor(BasePredictor):
             negative_prompt=[negative_prompt] * num_outputs
             if negative_prompt is not None
             else None,
-            control_image=resize_for_condition_image(Image.open(control_image),width),
             image=resize_for_condition_image(Image.open(image),width),
             width=width,
             height=height,
