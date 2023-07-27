@@ -2,6 +2,10 @@ import os
 from typing import List
 
 import torch
+import numpy as np
+import cv2
+import urllib
+
 from cog import BasePredictor, Input, Path
 from PIL import Image
 from diffusers.utils import load_image
@@ -13,8 +17,9 @@ from diffusers import (
     EulerDiscreteScheduler,
     EulerAncestralDiscreteScheduler,
     DPMSolverMultistepScheduler,
-    StableDiffusionControlNetImg2ImgPipeline,
-    ControlNetModel
+    StableDiffusionControlNetPipeline,
+    ControlNetModel, 
+    UniPCMultistepScheduler, 
 )
 from diffusers.pipelines.stable_diffusion.safety_checker import (
     StableDiffusionSafetyChecker,
@@ -40,7 +45,7 @@ class Predictor(BasePredictor):
                                              cache_dir=MODEL_CACHE,
                                              local_files_only=True)
 
-        self.pipe = StableDiffusionControlNetImg2ImgPipeline.from_pretrained(
+        self.pipe = StableDiffusionControlNetPipeline.from_pretrained(
                     "DummyBanana/lol-diffusions",
                     controlnet=controlnet,
                     safety_checker=None,
@@ -93,9 +98,7 @@ class Predictor(BasePredictor):
         seed: int = Input(
             description="Random seed. Leave blank to randomize the seed. This is also named Generator", default=None
         ),
-         strength: int = Input(
-            default=0.9,
-        ),
+        
          controlnet_conditioning_scale: int = Input(
             default=1.5,
         ),
@@ -110,11 +113,11 @@ class Predictor(BasePredictor):
                 "Maximum size is 1024x768 or 768x1024 pixels, because of memory limits. Please select a lower width or height."
             )
 
-        self.pipe.scheduler = make_scheduler(scheduler, self.pipe.scheduler.config)
+        self.pipe.scheduler = UniPCMultistepScheduler.from_config(self.pipe.scheduler.config)
 
         generator = torch.Generator("cuda").manual_seed(seed)
         
-        def resize_for_condition_image(input_image: Image, resolution: int):
+        def resize_for_condition_image(input_image: Image, resolution: int,main_image):
             input_image = input_image.convert("RGB")
             W, H = input_image.size
             k = float(resolution) / min(H, W)
@@ -123,21 +126,25 @@ class Predictor(BasePredictor):
             H = int(round(H / 64.0)) * 64
             W = int(round(W / 64.0)) * 64
             img = input_image.resize((W, H), resample=Image.LANCZOS)
-            return img
+            image_data = np.asarray(img)
+            image = cv2.Canny(image_data,100,200)
+            image = image[:, :, None]
+            image = np.concatenate([image, image, image], axis=2)
+            image = Image.fromarray(image)
+            return image
 
         output = self.pipe(
             prompt=[prompt] * num_outputs if prompt is not None else None,
             negative_prompt=[negative_prompt] * num_outputs
             if negative_prompt is not None
             else None,
-            image=resize_for_condition_image(Image.open(image),width),
+            image=resize_for_condition_image(Image.open(image),width,image),
             width=width,
             height=height,
             guidance_scale=guidance_scale,
             generator=generator,
             num_inference_steps=num_inference_steps,
             controlnet_conditioning_scale=controlnet_conditioning_scale,
-            strength=strength,
         )
 
         output_paths = []
