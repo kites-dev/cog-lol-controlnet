@@ -4,7 +4,7 @@ import os
 import shutil
 import sys
 
-from diffusers import StableDiffusionControlNetImg2ImgPipeline, ControlNetModel, DDIMScheduler
+from diffusers import StableDiffusionControlNetPipeline, ControlNetModel, DDIMScheduler
 from diffusers.pipelines.stable_diffusion.safety_checker import \
     StableDiffusionSafetyChecker
 
@@ -24,10 +24,10 @@ saftey_checker = StableDiffusionSafetyChecker.from_pretrained(
 
 
 controlnet = ControlNetModel.from_pretrained(
-    "DionTimmer/controlnet_qrcode-control_v11p_sd21",
+    "lllyasviel/sd-controlnet-canny",
      cache_dir=MODEL_CACHE)
 
-pipe = StableDiffusionControlNetImg2ImgPipeline.from_pretrained(
+pipe = StableDiffusionControlNetPipeline.from_pretrained(
     MODEL_ID,
      controlnet=controlnet,
     cache_dir=MODEL_CACHE,
